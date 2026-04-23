@@ -8,7 +8,7 @@ from email.mime.text import MIMEText
 
 # ── Configuration ────────────────────────────────────────────────────────────
 NEWS_API_KEY   = os.environ["NEWS_API_KEY"]
-NYT_API_KEY    = os.environ["NYT_API_KEY"]
+NYT_API_KEY    = os.environ.get("NYT_API_KEY", "")  # Optional — falls back to NewsAPI if missing
 GMAIL_ADDRESS  = os.environ["GMAIL_ADDRESS"]
 GMAIL_APP_PASS = os.environ["GMAIL_APP_PASS"]
 TO_EMAIL       = "milonitze@gmail.com"
