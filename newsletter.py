@@ -8,14 +8,14 @@ from email.mime.text import MIMEText
 
 # ── Configuration ────────────────────────────────────────────────────────────
 NEWS_API_KEY   = os.environ["NEWS_API_KEY"]
-NYT_API_KEY    = os.environ.get("NYT_API_KEY", "")  # Optional — falls back to NewsAPI if missing
+NYT_API_KEY    = os.environ.get("NYT_API_KEY", "")
 GMAIL_ADDRESS  = os.environ["GMAIL_ADDRESS"]
 GMAIL_APP_PASS = os.environ["GMAIL_APP_PASS"]
 TO_EMAIL       = "milonitze@gmail.com"
 
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 
-# ── Topics ───────────────────────────────────────────────────────────────────
+# ── News topics ───────────────────────────────────────────────────────────────
 TOPICS = [
     {
         "label": "World News",
@@ -57,6 +57,42 @@ TOPICS = [
         "newsapi_query": "investment banking OR mergers acquisitions OR private equity OR Wall Street OR IPO OR hedge fund OR Federal Reserve",
         "use_nyt": True,
     },
+    {
+        "label": "Deal Tracker",
+        "emoji": "🤝",
+        "nyt_query": "mergers acquisitions deal investment banking",
+        "nyt_section": "business",
+        "newsapi_query": "merger OR acquisition OR IPO OR deal OR leveraged buyout OR private equity transaction OR real estate deal",
+        "use_nyt": True,
+    },
+    {
+        "label": "Fed & Macro",
+        "emoji": "🏦",
+        "nyt_query": "federal reserve interest rates inflation economy",
+        "nyt_section": "business",
+        "newsapi_query": "Federal Reserve OR interest rates OR inflation OR CPI OR PPI OR GDP OR jobs report OR unemployment OR monetary policy",
+        "use_nyt": True,
+    },
+    {
+        "label": "Earnings",
+        "emoji": "📊",
+        "nyt_query": "earnings results quarterly revenue profit",
+        "nyt_section": "business",
+        "newsapi_query": "earnings OR quarterly results OR revenue beat OR profit OR EPS OR guidance OR beats estimates",
+        "use_nyt": True,
+    },
+]
+
+# ── Commodities ───────────────────────────────────────────────────────────────
+COMMODITIES = [
+    ("CL=F",  "Crude Oil (WTI)", "/bbl"),
+    ("BZ=F",  "Brent Crude",     "/bbl"),
+    ("GC=F",  "Gold",            "/oz"),
+    ("SI=F",  "Silver",          "/oz"),
+    ("HG=F",  "Copper",          "/lb"),
+    ("NG=F",  "Natural Gas",     "/MMBtu"),
+    ("ZC=F",  "Corn",            "/bu"),
+    ("ZW=F",  "Wheat",           "/bu"),
 ]
 
 # ── Song picks ────────────────────────────────────────────────────────────────
@@ -94,13 +130,13 @@ SONG_PICKS = [
     ("Kong", "Bonobo", "https://open.spotify.com/search/Kong%20Bonobo", "Darker and more driving than his usual sound. Worth hearing if you only know his ambient side."),
     ("Opus", "Eric Prydz", "https://open.spotify.com/search/Opus%20Eric%20Prydz", "The most euphoric progressive house track ever made. If you haven't heard this, stop everything."),
     ("Pjanoo", "Eric Prydz", "https://open.spotify.com/search/Pjanoo%20Eric%20Prydz", "The piano riff that defined a generation of progressive house. An absolute landmark."),
-    ("Nicte", "Massano, PAWSA", "https://open.spotify.com/search/Nicte%20Massano%20PAWSA", "A more driving, darker side of Massano. Great late night energy."),
-    ("Reverie", "Lane 8, Kidnap", "https://open.spotify.com/search/Reverie%20Lane%208%20Kidnap", "Lane 8 and Kidnap is a perfect pairing. Emotional, melodic, and beautifully produced."),
     ("Chest", "John Summit, Hayla", "https://open.spotify.com/search/Chest%20John%20Summit%20Hayla", "Summit adding a vocal element to his usual driving tech house. One of his best recent tracks."),
     ("Your Love", "Franky Wah", "https://open.spotify.com/search/Your%20Love%20Franky%20Wah", "UK producer making emotional melodic house. This one is massive and completely underrated."),
     ("No Sleep", "Fisher, Aatig", "https://open.spotify.com/search/No%20Sleep%20Fisher%20Aatig", "FISHER and Aatig — you know Aatig from Chris Lake collabs. This one hits just as hard."),
     ("Closer", "Pretty Lights", "https://open.spotify.com/search/Closer%20Pretty%20Lights", "Electronic soul at its best. A completely different corner of the genre worth exploring."),
     ("High & Low", "Elderbrook, Rudimental", "https://open.spotify.com/search/High%20Low%20Elderbrook%20Rudimental", "Elderbrook over a more uptempo production. Great energy without losing the emotional core."),
+    ("Reverie", "Lane 8, Kidnap", "https://open.spotify.com/search/Reverie%20Lane%208%20Kidnap", "Lane 8 and Kidnap is a perfect pairing. Emotional, melodic, and beautifully produced."),
+    ("Nicte", "Massano, PAWSA", "https://open.spotify.com/search/Nicte%20Massano%20PAWSA", "A more driving, darker side of Massano. Great late night energy."),
 ]
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -112,30 +148,28 @@ def get_daily_song():
 
 
 def fetch_nyt_articles(query, section, max_results=4):
-    """Fetch from NYT Article Search API, prioritizing by relevance and recency."""
+    if not NYT_API_KEY:
+        return []
     yesterday = (datetime.utcnow() - timedelta(days=1)).strftime("%Y%m%d")
     today     = datetime.utcnow().strftime("%Y%m%d")
     try:
-        url = "https://api.nytimes.com/svc/search/v2/articlesearch.json"
         params = {
-            "q":           query,
-            "fq":          f'section_name:("{section}")',
-            "begin_date":  yesterday,
-            "end_date":    today,
-            "sort":        "relevance",
-            "api-key":     NYT_API_KEY,
+            "q":          query,
+            "fq":         f'section_name:("{section}")',
+            "begin_date": yesterday,
+            "end_date":   today,
+            "sort":       "relevance",
+            "api-key":    NYT_API_KEY,
         }
-        r = requests.get(url, params=params, timeout=10)
+        r    = requests.get("https://api.nytimes.com/svc/search/v2/articlesearch.json", params=params, timeout=10)
         r.raise_for_status()
         docs = r.json().get("response", {}).get("docs", [])
         results = []
         for d in docs[:max_results]:
             headline = d.get("headline", {}).get("main", "")
             abstract = d.get("abstract", "") or d.get("snippet", "")
-            web_url  = d.get("web_url", "#")
-            source   = "The New York Times"
             if headline:
-                results.append({"title": headline, "description": abstract, "url": web_url, "source": source})
+                results.append({"title": headline, "description": abstract, "url": d.get("web_url", "#"), "source": "The New York Times"})
         return results
     except Exception as e:
         print(f"NYT fetch error: {e}")
@@ -146,25 +180,15 @@ def fetch_newsapi_articles(query, max_results=4):
     yesterday = (datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%d")
     try:
         params = {
-            "q":        query,
-            "from":     yesterday,
-            "sortBy":   "popularity",
-            "pageSize": max_results,
-            "language": "en",
-            "apiKey":   NEWS_API_KEY,
+            "q": query, "from": yesterday, "sortBy": "popularity",
+            "pageSize": max_results, "language": "en", "apiKey": NEWS_API_KEY,
         }
         resp = requests.get("https://newsapi.org/v2/everything", params=params, timeout=10)
         resp.raise_for_status()
-        articles = resp.json().get("articles", [])
         results = []
-        for a in articles:
+        for a in resp.json().get("articles", []):
             if a.get("title") and a.get("description") and "[Removed]" not in a.get("title", ""):
-                results.append({
-                    "title":       a.get("title", ""),
-                    "description": a.get("description", ""),
-                    "url":         a.get("url", "#"),
-                    "source":      a.get("source", {}).get("name", ""),
-                })
+                results.append({"title": a["title"], "description": a["description"], "url": a.get("url", "#"), "source": a.get("source", {}).get("name", "")})
         return results
     except Exception as e:
         print(f"NewsAPI fetch error: {e}")
@@ -172,28 +196,23 @@ def fetch_newsapi_articles(query, max_results=4):
 
 
 def fetch_articles_for_topic(topic):
-    """Try NYT first, fall back to NewsAPI if not enough results."""
     articles = []
     if topic.get("use_nyt"):
         articles = fetch_nyt_articles(topic["nyt_query"], topic["nyt_section"])
     if len(articles) < 2:
         print(f"  NYT returned {len(articles)}, supplementing with NewsAPI...")
-        newsapi = fetch_newsapi_articles(topic["newsapi_query"])
-        articles = articles + newsapi
+        articles = articles + fetch_newsapi_articles(topic["newsapi_query"])
     return articles[:4]
 
 
 def generate_section_summary(topic_label, articles):
-    """Use Claude to write a digest summary from the article headlines and abstracts."""
     if not articles:
         return "No articles available for this section today."
-
     article_text = "\n\n".join(
         f"Source: {a['source']}\nHeadline: {a['title']}\nAbstract: {a['description']}"
         for a in articles
     )
-
-    prompt = f"""You are writing the '{topic_label}' section of a morning news briefing email called Nitze's News.
+    prompt = f"""You are writing the '{topic_label}' section of a morning news briefing email called Nitze's News, sent to a college student who is an incoming investment banking analyst at Bank of America focused on Real Estate and Industrials.
 
 Here are today's top articles on this topic:
 
@@ -205,25 +224,42 @@ Write a 3-5 sentence summary of what is happening in this topic area today. Writ
         resp = requests.post(
             ANTHROPIC_API_URL,
             headers={"Content-Type": "application/json"},
-            json={
-                "model":      "claude-sonnet-4-20250514",
-                "max_tokens": 300,
-                "messages":   [{"role": "user", "content": prompt}],
-            },
+            json={"model": "claude-sonnet-4-20250514", "max_tokens": 300, "messages": [{"role": "user", "content": prompt}]},
             timeout=30,
         )
         resp.raise_for_status()
         return resp.json()["content"][0]["text"].strip()
     except Exception as e:
         print(f"Claude summary error: {e}")
-        # Fallback: just use the first abstract
         return articles[0]["description"] if articles else "No summary available."
+
+
+def fetch_commodities():
+    results = []
+    for symbol, name, unit in COMMODITIES:
+        try:
+            url  = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=2d"
+            r    = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+            meta = r.json()["chart"]["result"][0]["meta"]
+            price = meta.get("regularMarketPrice", 0)
+            prev  = meta.get("chartPreviousClose", price)
+            chg   = price - prev
+            pct   = (chg / prev * 100) if prev else 0
+            results.append({
+                "name":  name,
+                "unit":  unit,
+                "price": f"${price:,.2f}",
+                "chg":   f"{'▲' if chg>=0 else '▼'} {abs(pct):.2f}%",
+                "color": "#16a34a" if chg >= 0 else "#dc2626",
+            })
+        except Exception:
+            results.append({"name": name, "unit": unit, "price": "N/A", "chg": "N/A", "color": "#888"})
+    return results
 
 
 def fetch_trending_stocks():
     try:
-        url = "https://query1.finance.yahoo.com/v1/finance/trending/US?count=10"
-        r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+        r = requests.get("https://query1.finance.yahoo.com/v1/finance/trending/US?count=10", headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
         return [item["symbol"] for item in r.json()["finance"]["result"][0]["quotes"]][:10]
     except Exception:
         return ["AAPL","MSFT","NVDA","AMZN","META","GOOGL","TSLA","JPM","GS","BAC"]
@@ -233,26 +269,24 @@ def fetch_market_snapshot():
     indices, stocks = [], []
     for symbol, name in [("^GSPC", "S&P 500"), ("^IXIC", "Nasdaq")]:
         try:
-            r    = requests.get(f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=2d", headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
-            meta = r.json()["chart"]["result"][0]["meta"]
+            meta  = requests.get(f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=2d", headers={"User-Agent": "Mozilla/5.0"}, timeout=10).json()["chart"]["result"][0]["meta"]
             price, prev = meta.get("regularMarketPrice", 0), meta.get("chartPreviousClose", 0)
-            chg  = price - prev
-            pct  = (chg / prev * 100) if prev else 0
+            chg   = price - prev
+            pct   = (chg / prev * 100) if prev else 0
             indices.append({"name": name, "price": f"{price:,.2f}", "chg": f"{'▲' if chg>=0 else '▼'} {abs(chg):,.2f} ({abs(pct):.2f}%)", "color": "#16a34a" if chg>=0 else "#dc2626"})
         except Exception:
             indices.append({"name": name, "price": "N/A", "chg": "N/A", "color": "#888"})
-
     for symbol in fetch_trending_stocks():
         try:
-            r    = requests.get(f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=2d", headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
-            meta = r.json()["chart"]["result"][0]["meta"]
+            data  = requests.get(f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=2d", headers={"User-Agent": "Mozilla/5.0"}, timeout=10).json()
+            meta  = data["chart"]["result"][0]["meta"]
             price, prev = meta.get("regularMarketPrice", 0), meta.get("chartPreviousClose", 0)
-            chg  = price - prev
-            pct  = (chg / prev * 100) if prev else 0
-            stocks.append({"symbol": symbol, "price": f"${price:,.2f}", "chg": f"{'▲' if chg>=0 else '▼'} {abs(pct):.2f}%", "color": "#16a34a" if chg>=0 else "#dc2626"})
+            chg   = price - prev
+            pct   = (chg / prev * 100) if prev else 0
+            company = meta.get("longName") or meta.get("shortName") or symbol
+            stocks.append({"symbol": symbol, "name": company, "price": f"${price:,.2f}", "chg": f"{chr(9650) if chg>=0 else chr(9660)} {abs(pct):.2f}%", "color": "#16a34a" if chg>=0 else "#dc2626"})
         except Exception:
-            stocks.append({"symbol": symbol, "price": "N/A", "chg": "N/A", "color": "#888"})
-
+            stocks.append({"symbol": symbol, "name": "", "price": "N/A", "chg": "N/A", "color": "#888"})
     return indices, stocks
 
 
@@ -270,7 +304,10 @@ def render_market_snapshot(indices, stocks):
 
     stock_rows = "".join(f"""
     <tr>
-      <td style="padding:10px 0;border-bottom:1px solid #f3f4f6;"><span style="font-size:14px;font-weight:700;color:#1a1a1a;font-family:-apple-system,sans-serif;">{s['symbol']}</span></td>
+      <td style="padding:10px 0;border-bottom:1px solid #f3f4f6;">
+        <span style="font-size:14px;font-weight:700;color:#1a1a1a;font-family:-apple-system,sans-serif;">{s['symbol']}</span>
+        <span style="font-size:12px;color:#888;font-family:-apple-system,sans-serif;"> {s['name']}</span>
+      </td>
       <td style="padding:10px 0;border-bottom:1px solid #f3f4f6;text-align:right;"><span style="font-size:14px;color:#374151;font-family:-apple-system,sans-serif;">{s['price']}</span></td>
       <td style="padding:10px 0;border-bottom:1px solid #f3f4f6;text-align:right;"><span style="font-size:13px;font-weight:600;color:{s['color']};font-family:-apple-system,sans-serif;">{s['chg']}</span></td>
     </tr>""" for s in stocks)
@@ -290,10 +327,33 @@ def render_market_snapshot(indices, stocks):
     </td></tr>"""
 
 
+def render_commodities(commodities):
+    rows = "".join(f"""
+    <tr>
+      <td style="padding:10px 0;border-bottom:1px solid #f3f4f6;">
+        <span style="font-size:14px;font-weight:700;color:#1a1a1a;font-family:-apple-system,sans-serif;">{c['name']}</span>
+        <span style="font-size:11px;color:#888;font-family:-apple-system,sans-serif;"> {c['unit']}</span>
+      </td>
+      <td style="padding:10px 0;border-bottom:1px solid #f3f4f6;text-align:right;"><span style="font-size:14px;color:#374151;font-family:-apple-system,sans-serif;">{c['price']}</span></td>
+      <td style="padding:10px 0;border-bottom:1px solid #f3f4f6;text-align:right;"><span style="font-size:13px;font-weight:600;color:{c['color']};font-family:-apple-system,sans-serif;">{c['chg']}</span></td>
+    </tr>""" for c in commodities)
+
+    return f"""
+    <tr><td style="padding:28px 0 0 0;">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr><td style="padding-bottom:14px;border-bottom:3px solid #1a1a1a;">
+          <span style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#1a1a1a;font-family:-apple-system,sans-serif;">⛽ Commodity Prices</span>
+        </td></tr>
+        <tr><td style="padding-top:8px;">
+          <table width="100%" cellpadding="0" cellspacing="0">{rows}</table>
+        </td></tr>
+      </table>
+    </td></tr>"""
+
+
 def render_news_section(topic, articles, summary):
     if not articles:
         return ""
-
     links = "".join(f"""
     <tr><td style="padding:8px 0;border-bottom:1px solid #f3f4f6;">
       <span style="font-size:11px;font-weight:700;color:#888;font-family:-apple-system,sans-serif;">{a['source']} &nbsp;</span>
@@ -335,12 +395,8 @@ def render_song_section(song):
     </td></tr>"""
 
 
-def build_html(indices, stocks, topic_sections, song):
-    date_str  = datetime.now().strftime("%A, %B %d, %Y")
-    market    = render_market_snapshot(indices, stocks)
-    sections  = "".join(render_news_section(t, a, s) for t, a, s in topic_sections)
-    song_sec  = render_song_section(song)
-
+def build_html(indices, stocks, commodities, topic_sections, song):
+    date_str = datetime.now().strftime("%A, %B %d, %Y")
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
@@ -355,9 +411,10 @@ def build_html(indices, stocks, topic_sections, song):
         </td></tr>
         <tr><td style="padding:0 40px 40px 40px;">
           <table width="100%" cellpadding="0" cellspacing="0">
-            {market}
-            {sections}
-            {song_sec}
+            {render_market_snapshot(indices, stocks)}
+            {render_commodities(commodities)}
+            {"".join(render_news_section(t, a, s) for t, a, s in topic_sections)}
+            {render_song_section(song)}
           </table>
         </td></tr>
         <tr><td style="padding:20px 40px;background-color:#f9f9f9;border-top:1px solid #eee;">
@@ -388,6 +445,9 @@ def main():
     print("Fetching market data...")
     indices, stocks = fetch_market_snapshot()
 
+    print("Fetching commodity prices...")
+    commodities = fetch_commodities()
+
     topic_sections = []
     for t in TOPICS:
         print(f"Fetching: {t['label']} ...")
@@ -399,7 +459,7 @@ def main():
     song = get_daily_song()
     print(f"Today's song: {song[0]} — {song[1]}")
 
-    html = build_html(indices, stocks, topic_sections, song)
+    html = build_html(indices, stocks, commodities, topic_sections, song)
     send_email(html)
     print("Done.")
 
